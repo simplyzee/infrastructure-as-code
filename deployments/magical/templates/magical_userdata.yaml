@@ -1,0 +1,119 @@
+#cloud-config
+repo_update: true
+repo_upgrade: all
+
+write_files:
+  - path: /home/centos/remote_file.csv
+    permissions: '0755'
+    content: |
+      id,first_name,last_name,email,gender,ip_address
+      1,Janek,Porte,jporte0@theglobeandmail.com,Male,55.80.181.39
+      2,Charlot,Fleetwood,cfleetwood1@artisteer.com,Female,76.245.41.17
+      3,Kristien,Getley,kgetley2@instagram.com,Female,218.176.72.8
+      4,Louie,Townshend,ltownshend3@nsw.gov.au,Male,241.105.71.224
+      5,Sylvester,Eriksson,seriksson4@slate.com,Male,249.87.144.119
+      6,Leigha,Borthe,lborthe5@addtoany.com,Female,213.99.78.26
+      7,Elvyn,Prandini,eprandini6@gnu.org,Male,178.18.65.2
+      8,Stafford,Maxfield,smaxfield7@virginia.edu,Male,127.29.187.183
+      9,Kellsie,Henrique,khenrique8@taobao.com,Female,109.156.64.125
+      10,Livy,Reekie,lreekie9@prnewswire.com,Female,37.103.207.44
+
+  - path: /usr/local/bin/magical_batch_processor.sh
+    permissions: '0644'
+    content: |
+      #!/bin/bash
+
+      ###
+      # Magical batch processor #
+      # Simulates an SFTP connection to download, process and upload files to an S3 bucket.
+      # A log is generated everytime the script executes in /var/log/magical_batch_processor.log
+      # Usage: ./magical_batch_processor.sh
+      ###
+
+      magical_batch_log=/var/log/magical_batch_processor.log
+      home_dir=/home/centos
+
+      if [[ -z ${sftp_username} ]]; then
+        echo "sftp_username does not exist. Exiting..." >> $magical_batch_log
+        exit 1
+      fi
+
+      if [[ -z ${sftp_password} ]]; then
+        echo "sftp_password does not exist. Exiting..." >> $magical_batch_log
+        exit 1
+      fi
+
+      download_file() {
+        # SFTP connect and download simulation
+
+        echo "Connecting to sftp://3rdparty.com" >> $magical_batch_log
+        echo "Downloading file.csv" >> $magical_batch_log
+
+        cp $home_dir/remote_file.csv $home_dir/file.csv
+
+        echo "Downloaded file.csv" >> $magical_batch_log
+      }
+
+      process_file() {
+        # Process file using "magical" simulation
+
+        if [ ! -f /home/centos/file.csv ]; then
+          echo "file.csv not found" >> $magical_batch_log
+          exit 1
+        fi
+
+        echo "Processing file.csv" >> $magical_batch_log
+        echo "magical -f $home_dir/file.csv -d magical.rds.amazonaws.com" >> $magical_batch_log
+
+        cp $home_dir/file.csv $home_dir/output.csv
+
+        echo "file.csv successfully processed with newly created file - output.csv" >> $magical_batch_log
+      }
+
+      upload_to_s3() {
+        # Store file.csv & output.csv to s3 magical-files bucket with current date appended to the filenames.
+
+        date=$(date +"%m_%d_%Y")
+
+        echo "Uploading file.csv & output.csv to s3://magical-files" >> $magical_batch_log
+
+        aws s3 cp $home_dir/file.csv s3://magical-files/file-$date.csv --region us-east-1
+        aws s3 cp $home_dir/output.csv s3://magical-files/output-$date.csv --region us-east-1
+
+        echo "Upload to s3 completed" >> $magical_batch_log
+      }
+
+      download_file ${sftp_username} ${sftp_password}
+      process_file
+      upload_to_s3
+
+  - path: /etc/systemd/system/magical_batch_processor.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=magical batch processor service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/bash /usr/local/bin/magical_batch_processor.sh <TODO>
+
+  - path: /etc/systemd/system/magical_batch_processor.timer
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=magical batch processor timer
+      After=network-online.target
+      Requires=network-online.target
+
+      [Timer]
+      OnCalendar=*-*-* 00:00:00
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - yum update -y
+  - yum install -y epel-release
+  - yum install -y python-pip
+  - pip install awscli
+  - systemctl start magical_batch_processor.timer
